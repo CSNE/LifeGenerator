@@ -48,8 +48,13 @@ def add_datapoint(dp):
 
 
 def datapoints_to_csv():
+    s=''
+    s+="start_time,end_time,activity,place,address,location,person,food,amount_of_food,meal_type,hunger,emotion,tiredness,temperature,humidity"
+    s+="\n"
     for i in datapoints:
-        print(i.as_csv_row())
+        s+=i.as_csv_row()
+        s+="\n"
+    return s
 
 
 def add_move(*,
@@ -167,7 +172,7 @@ class Environment():
 
 
     def formatted_time(self):
-        return self._time.strftime("%H:%M:%S %Z")
+        return self._time.strftime("%H:%M:%S")
 
 
 
@@ -247,8 +252,8 @@ class Environment():
         self._time += TimeDelta(minutes=minutes)
         end_time = self.formatted_time()
 
-        self._hunger += minutes * 10
-        self._tiredness += minutes * 3
+        self._hunger += minutes/60*10 #10/hour
+        self._tiredness += minutes/60*5 #5/hour
 
         return (start_time, end_time)
 
@@ -492,6 +497,7 @@ class MoveSchedule(ScheduleElement):
                    dest_address=self.to_position[0],
                    dest_place=self.to_position[1])
 
+
 class ScheduleList():
     def __init__(self):
         self._schedule = []
@@ -527,7 +533,12 @@ def main():
     h.simulate_until(DateTime(2018,9,1,20,0,0))
 
     print("\n\n\n########  RESULTS  #########\n")
-    datapoints_to_csv()
+    res=datapoints_to_csv()
+    print(res)
+
+    with open("generator_results.csv","w",encoding="utf8") as f:
+
+        f.write(res)
 
 
 
