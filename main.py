@@ -169,7 +169,9 @@ class Environment():
     def address(self):
         return self._address
 
-
+    @property
+    def hunger(self):
+        return self._hunger
 
     def formatted_time(self):
         return self._time.strftime("%H:%M:%S")
@@ -328,7 +330,8 @@ class Human():
         add_nothing(environment=self.env,
                  time_range=self.env.time_progress(minutes_taken))
 
-
+    def minutes_clearance(self):
+        return (self.schedule.peek_nearest().start_time-self.env.time).total_seconds()/60
     def select_action(self):
 
         print("Selecting action...")
@@ -366,12 +369,31 @@ class Human():
             nearest_event.act(self)
             self.schedule.pop_nearest()
 
-        else: #TODO: Placeholder
-            print("Add nothing...")
-            self.add_schedule(NothingSchedule(start_time=self.env.time,
-                                              place=self.env.place,
-                                              address=self.env.address,
-                                              minutes_duration=td.total_seconds()/60))
+        else: #No schedule. Generate a new one.
+            print("Generating a new schedule...")
+
+            eat_probability = (self.env.hunger - 50) / 50 * 0.7 + 0.3
+            if self.env.hunger<50:
+                eat_probability=0
+            # Snacks
+            if eat_probability > random.random() and self.minutes_clearance()>30:
+                self.schedule.add_schedule(
+                    EatSchedule(
+                        start_time=self.env.time+TimeDelta(minutes=10),
+                        place="편의점",
+                        address=self.env.address,
+                        food_type="PLACEHOLDER",
+                        food_name="PLACEHOLDER",
+                        food_amount="PLACEHOLDER",
+                        minutes_duration=10
+                    )
+                )
+            else:
+                self.add_schedule(NothingSchedule(start_time=self.env.time,
+                                                  place=self.env.place,
+                                                  address=self.env.address,
+                                                  minutes_duration=td.total_seconds()/60))
+
     def simulate_until(self, limit_time):
 
         n=0
@@ -401,18 +423,19 @@ class ScheduleElement():
                  start_time,
                  place,
                  address,
-                 priority,
-                 recurring):
+                 priority):
         self.start_time = start_time
         self.place = place
         self.address = address
         self.priority = priority
-        self.recurring = recurring
 
         print("Schedule created.",start_time,"|",place,"|",address)
 
     def act(self, human):
         raise NotImplementedError
+
+    def readd(self):
+        return False
 
 
 class LectureSchedule(ScheduleElement):
@@ -423,7 +446,6 @@ class LectureSchedule(ScheduleElement):
                  address,
                  minutes_duration):
         super().__init__(priority=20,
-                         recurring=True,
                          start_time=start_time,
                          place=place,
                          address=address)
@@ -433,6 +455,10 @@ class LectureSchedule(ScheduleElement):
         print("LectureSchedule activated")
         human.work(minutes_taken=self.minutes_duration)
 
+    def readd(self):
+        self.start_time+=TimeDelta(days=7)
+        return True
+
 
 class MeetingSchedule(ScheduleElement):
 
@@ -441,13 +467,41 @@ class MeetingSchedule(ScheduleElement):
                  place,
                  address):
         super().__init__(priority=50,
-                         recurring=False,
                          start_time=start_time,
                          place=place,
                          address=address)
 
     def act(self, human):
         raise Exception
+
+class EatSchedule(ScheduleElement):
+
+    def __init__(self,*,
+                 start_time,
+                 place,
+                 address,
+                 minutes_duration,
+                 food_amount,
+                 food_name,
+                 food_type):
+
+        super().__init__(priority=50,
+                         start_time=start_time,
+                         place=place,
+                         address=address)
+
+        self.minutes_duration=minutes_duration
+        self.food_amount =food_amount
+        self.food_name =food_name
+        self.food_type =food_type
+
+    def act(self, human):
+        print("EatSchedule activated")
+        human.eat(minutes_taken=self.minutes_duration,
+                  food_amount=self.food_amount,
+                  food_name=self.food_name,
+                  food_type=self.food_type)
+
 
 class NothingSchedule(ScheduleElement):
 
@@ -457,7 +511,6 @@ class NothingSchedule(ScheduleElement):
                  address,
                  minutes_duration):
         super().__init__(priority=50,
-                         recurring=False,
                          start_time=start_time,
                          place=place,
                          address=address)
@@ -485,7 +538,6 @@ class MoveSchedule(ScheduleElement):
             self.timetaken = 30
 
         super().__init__(priority=0,
-                         recurring=False,
                          start_time=target_schedule.start_time - TimeDelta(minutes=self.timetaken),
                          place=current_environment.place,
                          address=current_environment.address)
@@ -515,10 +567,11 @@ class ScheduleList():
     def peek_nearest(self):
         return self._schedule[0]
 
-
     def pop_nearest(self):
         res = self._schedule[0]
-        del self._schedule[0]
+        if not res.readd():
+            del self._schedule[0]
+        self.sort()
         return res
 
 
@@ -530,7 +583,7 @@ def main():
                         address="PLACEHOLDER",
                         minutes_duration=50))
 
-    h.simulate_until(DateTime(2018,9,1,20,0,0))
+    h.simulate_until(DateTime(2018,9,30,20,0,0))
 
     print("\n\n\n########  RESULTS  #########\n")
     res=datapoints_to_csv()
