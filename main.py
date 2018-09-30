@@ -199,6 +199,10 @@ class Environment():
         return self._time.strftime("%Y-%m-%d %H:%M:%S")
 
 
+    def group_set(self,group):
+        self._group=group
+    def group_clear(self):
+        self._group="혼자"
 
     def formatted_hunger(self):
         if self._hunger >= 50:
@@ -465,6 +469,8 @@ class ScheduleElement():
     def act(self, human):
         raise NotImplementedError
 
+
+
     def readd(self):
         return False
 
@@ -475,16 +481,24 @@ class LectureSchedule(ScheduleElement):
                  start_time,
                  place,
                  address,
-                 minutes_duration):
+                 minutes_duration,
+                 friend=None):
         super().__init__(priority=20,
                          start_time=start_time,
                          place=place,
                          address=address)
         self.minutes_duration = minutes_duration
+        self.friend=friend
 
     def act(self, human):
         print("LectureSchedule activated")
+
+        if self.friend is not None:
+            human.env.group_set(self.friend)
         human.work(minutes_taken=self.minutes_duration)
+        human.env.group_clear()
+
+
 
     def readd(self):
         self.start_time+=TimeDelta(days=7)
@@ -674,7 +688,7 @@ def main():
     p.school_addr="SCHOOLADDR"
     p.school_cafeteria_place="SCHOOLFOODPLACE"
 
-    h = Human(start_time=DateTime(2018,9,2,23,0,0))
+    h = Human(start_time=DateTime(2018,9,2,20,0,0))
 
     h.add_schedule(
         SleepSchedule(start_time=DateTime(2018, 9, 2, 23, 0, 0),
@@ -689,7 +703,8 @@ def main():
         LectureSchedule(start_time=DateTime(2018,9,3,11,0,0),
                         place="공A131",
                         address=p.school_addr,
-                        minutes_duration=170)
+                        minutes_duration=170,
+                        friend="친밀한 사람|영희")
     )
 
     h.add_schedule(
@@ -716,7 +731,8 @@ def main():
         LectureSchedule(start_time=DateTime(2018, 9, 4, 9, 0, 0),
                         place="과111",
                         address=p.school_addr,
-                        minutes_duration=50)
+                        minutes_duration=50,
+                        friend="친밀한 사람|영희")
     )
     h.add_schedule(
         LectureSchedule(start_time=DateTime(2018, 9, 4, 10, 0, 0),
@@ -744,7 +760,8 @@ def main():
         LectureSchedule(start_time=DateTime(2018, 9, 4, 13, 0, 0),
                         place="위B09",
                         address=p.school_addr,
-                        minutes_duration=110)
+                        minutes_duration=110,
+                        friend="친밀한 사람|철수")
     )
 
     #WED
@@ -819,9 +836,6 @@ def main():
     with open("generator_results.csv","w",encoding="utf8") as f:
 
         f.write(res)
-
-
-
 
 if __name__ == "__main__":
     main()
