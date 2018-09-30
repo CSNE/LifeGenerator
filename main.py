@@ -1,7 +1,7 @@
 import random
 from datetime import datetime as DateTime
 from datetime import timedelta as TimeDelta
-
+import math
 
 class NoMoreScheduleException(Exception):
     pass
@@ -119,6 +119,23 @@ def add_work(*,
 
     add_datapoint(dp)
 
+def add_meet(*,
+             environment,
+             time_range):
+    print("ADD ROW: meet")
+    dp = DataPoint()
+    dp.start_time = time_range[0]
+    dp.end_time = time_range[1]
+    dp.activity = "사교"
+    dp.location = "실내"
+    dp.food = "/"
+    dp.amount_of_food = "/"
+    dp.meal_type = "/"
+
+    environment.copy_to_datapoint(dp)
+
+    add_datapoint(dp)
+
 
 def add_sleep(*,
              environment,
@@ -172,9 +189,14 @@ class Environment():
     _place = "??"
     _group = "혼자"
 
+    _temperature_curve=lambda t:25
+
     def __init__(self,*,start_time):
         self._time=start_time
 
+
+    def set_tempcurve(self,tc):
+        self._temperature_curve=tc
 
     @property
     def time(self):
@@ -239,7 +261,7 @@ class Environment():
             raise Exception("????")
 
     def formatted_temperature(self):
-        return self._temperature
+        return int(self._temperature)
 
     def formatted_humidity(self):
         if self._humidity >= 80:
@@ -285,6 +307,8 @@ class Environment():
         self._hunger += minutes/60*10 #10/hour
         self._tiredness += minutes/60*5 #5/hour
 
+        self._temperature=self._temperature_curve(self.time.hour+self.time.minute/60)
+
         return (start_time, end_time)
 
     def eat_effect(self):
@@ -313,9 +337,11 @@ class Human():
     '''
 
     def __init__(self,*,
-                 start_time):
+                 start_time,
+                 parameters):
         self.env = Environment(start_time=start_time)
         self.schedule = ScheduleList()
+        self.parameters=parameters
 
     def add_schedule(self, schedule):
         self.schedule.add_schedule(schedule)
@@ -359,6 +385,11 @@ class Human():
                  time_range=self.env.time_progress(minutes_taken))
 
         self.env.sleep_effect()
+
+    def meet(self,*,minutes_taken):
+
+        add_meet(environment=self.env,
+                 time_range=self.env.time_progress(minutes_taken))
 
     def do_nothing(self,*,
                    minutes_taken):
@@ -407,9 +438,7 @@ class Human():
         else: #No schedule. Generate a new one.
             print("Generating a new schedule...")
 
-            eat_probability = (self.env.hunger - 50) / 50 * 0.7 + 0.3
-            if self.env.hunger<50:
-                eat_probability=0
+            eat_probability = self.parameters.eat_probability(self.env.hunger)
             # Snacks
             if eat_probability > random.random() and self.minutes_clearance()>30:
                 self.schedule.add_schedule(
@@ -541,14 +570,19 @@ class MeetingSchedule(ScheduleElement):
     def __init__(self,*,
                  start_time,
                  place,
-                 address):
+                 address,
+                 person,
+                 minutes_duration):
         super().__init__(priority=50,
                          start_time=start_time,
                          place=place,
                          address=address)
-
+        self.person=person
+        self.minutes_taken=minutes_duration
     def act(self, human):
-        raise Exception
+        human.env.group_set(self.person)
+        human.work(minutes_taken=self.minutes_taken)
+        human.env.group_clear()
 
 class SnackSchedule(ScheduleElement):
 
@@ -687,8 +721,19 @@ def main():
     p.home_place = "HOMEPLACE"
     p.school_addr="SCHOOLADDR"
     p.school_cafeteria_place="SCHOOLFOODPLACE"
+    def eat_probability(hunger):
+        if hunger < 50:
+            return 0
 
-    h = Human(start_time=DateTime(2018,9,2,20,0,0))
+        return (hunger - 50) / 50 * 0.7 + 0.3
+    p.eat_probability=eat_probability
+    def temperature_curve(hour):
+        return 25+5*math.sin((hour-6)/24*2*math.pi)+randomize(0,3)
+
+    h = Human(start_time=DateTime(2018,9,2,20,0,0),
+              parameters=p)
+
+    h.env.set_tempcurve(temperature_curve)
 
     h.add_schedule(
         SleepSchedule(start_time=DateTime(2018, 9, 2, 23, 0, 0),
@@ -724,6 +769,7 @@ def main():
                         address=p.school_addr,
                         minutes_duration=110)
     )
+
 
     #TUE
 
@@ -763,6 +809,7 @@ def main():
                         minutes_duration=110,
                         friend="친밀한 사람|철수")
     )
+
 
     #WED
     h.add_schedule(
@@ -826,6 +873,17 @@ def main():
                         minutes_duration=50)
     )
 
+
+    #Extra
+    h.add_schedule(
+        MeetingSchedule(
+            start_time=DateTime(2018,9,7,14,0,0),
+            place="신촌역",
+            address=p.school_addr,
+            person="데면한 관계|홍길동",
+            minutes_duration=60
+        )
+    )
 
     h.simulate_until(DateTime(2018,9,30,20,0,0))
 
