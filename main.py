@@ -119,6 +119,24 @@ def add_work(*,
 
     add_datapoint(dp)
 
+
+def add_sleep(*,
+             environment,
+             time_range):
+    print("ADD ROW: sleep")
+    dp = DataPoint()
+    dp.start_time = time_range[0]
+    dp.end_time = time_range[1]
+    dp.activity = "수면"
+    dp.location = "실내"
+    dp.food = "/"
+    dp.amount_of_food = "/"
+    dp.meal_type = "/"
+
+    environment.copy_to_datapoint(dp)
+
+    add_datapoint(dp)
+
 def add_nothing(*,
                 environment,
                 time_range):
@@ -135,6 +153,10 @@ def add_nothing(*,
     environment.copy_to_datapoint(dp)
 
     add_datapoint(dp)
+
+class Parameters():
+    home_addr="HOMEADDR"
+    home_place="HOMEPLACE"
 
 class Environment():
     '''
@@ -174,7 +196,7 @@ class Environment():
         return self._hunger
 
     def formatted_time(self):
-        return self._time.strftime("%H:%M:%S")
+        return self._time.strftime("%Y-%m-%d %H:%M:%S")
 
 
 
@@ -325,6 +347,13 @@ class Human():
 
         self.env.stress_effect(10)
 
+    def sleep(self,*,minutes_taken):
+
+        add_sleep(environment=self.env,
+                 time_range=self.env.time_progress(minutes_taken))
+
+        self.env.sleep_effect()
+
     def do_nothing(self,*,
                    minutes_taken):
         add_nothing(environment=self.env,
@@ -378,7 +407,7 @@ class Human():
             # Snacks
             if eat_probability > random.random() and self.minutes_clearance()>30:
                 self.schedule.add_schedule(
-                    EatSchedule(
+                    SnackSchedule(
                         start_time=self.env.time+TimeDelta(minutes=10),
                         place="편의점",
                         address=self.env.address,
@@ -459,6 +488,28 @@ class LectureSchedule(ScheduleElement):
         self.start_time+=TimeDelta(days=7)
         return True
 
+class SleepSchedule(ScheduleElement):
+
+    def __init__(self,*,
+                 start_time,
+                 place,
+                 address,
+                 minutes_duration):
+        super().__init__(priority=20,
+                         start_time=start_time,
+                         place=place,
+                         address=address)
+        self.minutes_duration = minutes_duration
+
+    def act(self, human):
+        print("SleepSchedule activated")
+        human.sleep(minutes_taken=self.minutes_duration)
+
+    def readd(self):
+        self.start_time+=TimeDelta(days=1)
+        return True
+
+
 
 class MeetingSchedule(ScheduleElement):
 
@@ -474,7 +525,7 @@ class MeetingSchedule(ScheduleElement):
     def act(self, human):
         raise Exception
 
-class EatSchedule(ScheduleElement):
+class SnackSchedule(ScheduleElement):
 
     def __init__(self,*,
                  start_time,
@@ -496,12 +547,42 @@ class EatSchedule(ScheduleElement):
         self.food_type =food_type
 
     def act(self, human):
-        print("EatSchedule activated")
+        print("SnackSchedule activated")
         human.eat(minutes_taken=self.minutes_duration,
                   food_amount=self.food_amount,
                   food_name=self.food_name,
                   food_type=self.food_type)
 
+class MealSchedule(ScheduleElement):
+
+    def __init__(self,*,
+                 start_time,
+                 place,
+                 address,
+                 minutes_duration,
+                 food_amount,
+                 food_name,
+                 food_type):
+
+        super().__init__(priority=50,
+                         start_time=start_time,
+                         place=place,
+                         address=address)
+
+        self.minutes_duration=minutes_duration
+        self.food_amount =food_amount
+        self.food_name =food_name
+        self.food_type =food_type
+
+    def act(self, human):
+        print("MealSchedule activated")
+        human.eat(minutes_taken=self.minutes_duration,
+                  food_amount=self.food_amount,
+                  food_name=self.food_name,
+                  food_type=self.food_type)
+    def readd(self):
+        self.start_time+=TimeDelta(days=7)
+        return True
 
 class NothingSchedule(ScheduleElement):
 
@@ -576,12 +657,35 @@ class ScheduleList():
 
 
 def main():
+    p=Parameters()
+    p.home_addr = "HOMEADDR"
+    p.home_place = "HOMEPLACE"
+    p.school_addr="SCHOOLADDR"
+    p.school_cafeteria_place="SCHOOLFOODPLACE"
+    p.school_lecture_place="SCHOOLLECTUREPLACE"
+
     h = Human(start_time=DateTime(2018,9,1,9,0,0))
     h.add_schedule(
         LectureSchedule(start_time=DateTime(2018,9,1,12,0,0),
-                        place="PLACEHOLDER",
-                        address="PLACEHOLDER",
+                        place=p.school_lecture_place,
+                        address=p.school_addr,
                         minutes_duration=50))
+    h.add_schedule(
+        SleepSchedule(start_time=DateTime(2018,9,1,23,0,0),
+                      place=p.home_place,
+                      address=p.home_addr,
+                      minutes_duration=60*7)
+    )
+    h.add_schedule(
+        MealSchedule(start_time=DateTime(2018,9,1,13,0,0),
+                     place=p.school_cafeteria_place,
+                     address=p.school_addr,
+                     minutes_duration=30,
+                     food_amount="PLACEHOLDER",
+                     food_name="PLACEHOLDER",
+                     food_type="PLACEHOLDER"
+                     )
+    )
 
     h.simulate_until(DateTime(2018,9,30,20,0,0))
 
