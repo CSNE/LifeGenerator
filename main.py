@@ -272,6 +272,8 @@ class Environment():
         dp.place = self.formatted_place()
 
     def time_progress(self, minutes):
+        if minutes<0:
+            raise ValueError("Negative minutes????",minutes)
         start_time = self.formatted_time()
         self._time += TimeDelta(minutes=minutes)
         end_time = self.formatted_time()
@@ -421,7 +423,7 @@ class Human():
                 self.add_schedule(NothingSchedule(start_time=self.env.time,
                                                   place=self.env.place,
                                                   address=self.env.address,
-                                                  minutes_duration=td.total_seconds()/60))
+                                                  minutes_duration=min(3600,td.total_seconds())/60))
 
     def simulate_until(self, limit_time):
 
@@ -494,19 +496,28 @@ class SleepSchedule(ScheduleElement):
                  start_time,
                  place,
                  address,
-                 minutes_duration):
+                 wake_time,
+                 jitter_sdev):
         super().__init__(priority=20,
                          start_time=start_time,
                          place=place,
                          address=address)
-        self.minutes_duration = minutes_duration
+        self.wake_time = wake_time
+        self.jitter_sdev=jitter_sdev
+        self.orig_start_time=start_time
 
     def act(self, human):
         print("SleepSchedule activated")
-        human.sleep(minutes_taken=self.minutes_duration)
+        human.sleep(
+            minutes_taken=(
+                (self.wake_time-human.env.time).total_seconds()/60
+            )
+        )
 
     def readd(self):
-        self.start_time+=TimeDelta(days=1)
+        self.orig_start_time+=TimeDelta(days=1)
+        self.start_time=self.orig_start_time+TimeDelta(minutes=randomize(0,self.jitter_sdev))
+        self.wake_time+=TimeDelta(days=1)
         return True
 
 
@@ -662,23 +673,28 @@ def main():
     p.home_place = "HOMEPLACE"
     p.school_addr="SCHOOLADDR"
     p.school_cafeteria_place="SCHOOLFOODPLACE"
-    p.school_lecture_place="SCHOOLLECTUREPLACE"
 
-    h = Human(start_time=DateTime(2018,9,1,9,0,0))
+    h = Human(start_time=DateTime(2018,9,2,23,0,0))
+
     h.add_schedule(
-        LectureSchedule(start_time=DateTime(2018,9,1,12,0,0),
-                        place=p.school_lecture_place,
-                        address=p.school_addr,
-                        minutes_duration=50))
-    h.add_schedule(
-        SleepSchedule(start_time=DateTime(2018,9,1,23,0,0),
+        SleepSchedule(start_time=DateTime(2018, 9, 2, 23, 0, 0),
                       place=p.home_place,
                       address=p.home_addr,
-                      minutes_duration=60*7)
+                      wake_time=DateTime(2018, 9, 3, 7, 0, 0),
+                      jitter_sdev=30)
     )
+
+
     h.add_schedule(
-        MealSchedule(start_time=DateTime(2018,9,1,13,0,0),
-                     place=p.school_cafeteria_place,
+        LectureSchedule(start_time=DateTime(2018,9,3,11,0,0),
+                        place="공A131",
+                        address=p.school_addr,
+                        minutes_duration=170)
+    )
+
+    h.add_schedule(
+        MealSchedule(start_time=DateTime(2018,9,3,14,0,0),
+                     place="학생회관",
                      address=p.school_addr,
                      minutes_duration=30,
                      food_amount="PLACEHOLDER",
@@ -686,6 +702,113 @@ def main():
                      food_type="PLACEHOLDER"
                      )
     )
+
+    h.add_schedule(
+        LectureSchedule(start_time=DateTime(2018, 9, 3, 15, 0, 0),
+                        place="공D504",
+                        address=p.school_addr,
+                        minutes_duration=110)
+    )
+
+    #TUE
+
+    h.add_schedule(
+        LectureSchedule(start_time=DateTime(2018, 9, 4, 9, 0, 0),
+                        place="과111",
+                        address=p.school_addr,
+                        minutes_duration=50)
+    )
+    h.add_schedule(
+        LectureSchedule(start_time=DateTime(2018, 9, 4, 10, 0, 0),
+                        place="공D509",
+                        address=p.school_addr,
+                        minutes_duration=50)
+    )
+    h.add_schedule(
+        LectureSchedule(start_time=DateTime(2018, 9, 4, 11, 0, 0),
+                        place="대강당",
+                        address=p.school_addr,
+                        minutes_duration=50)
+    )
+    h.add_schedule(
+        MealSchedule(start_time=DateTime(2018, 9, 4, 12, 0, 0),
+                     place="학생회관",
+                     address=p.school_addr,
+                     minutes_duration=30,
+                     food_amount="PLACEHOLDER",
+                     food_name="PLACEHOLDER",
+                     food_type="PLACEHOLDER"
+                     )
+    )
+    h.add_schedule(
+        LectureSchedule(start_time=DateTime(2018, 9, 4, 13, 0, 0),
+                        place="위B09",
+                        address=p.school_addr,
+                        minutes_duration=110)
+    )
+
+    #WED
+    h.add_schedule(
+        LectureSchedule(start_time=DateTime(2018, 9, 5, 10, 0, 0),
+                        place="공D504",
+                        address=p.school_addr,
+                        minutes_duration=110)
+    )
+    h.add_schedule(
+        MealSchedule(start_time=DateTime(2018, 9, 5, 12, 0, 0),
+                     place="학생회관",
+                     address=p.school_addr,
+                     minutes_duration=30,
+                     food_amount="PLACEHOLDER",
+                     food_name="PLACEHOLDER",
+                     food_type="PLACEHOLDER"
+                     )
+    )
+    h.add_schedule(
+        LectureSchedule(start_time=DateTime(2018, 9, 5, 13, 0, 0),
+                        place="공D504",
+                        address=p.school_addr,
+                        minutes_duration=50)
+    )
+
+    # THR
+    h.add_schedule(
+        LectureSchedule(start_time=DateTime(2018, 9, 6, 10, 0, 0),
+                        place="과111",
+                        address=p.school_addr,
+                        minutes_duration=110)
+    )
+    h.add_schedule(
+        LectureSchedule(start_time=DateTime(2018, 9, 6, 12, 0, 0),
+                        place="위B09",
+                        address=p.school_addr,
+                        minutes_duration=50)
+    )
+    h.add_schedule(
+        MealSchedule(start_time=DateTime(2018, 9, 6, 13, 0, 0),
+                     place="학생회관",
+                     address=p.school_addr,
+                     minutes_duration=30,
+                     food_amount="PLACEHOLDER",
+                     food_name="PLACEHOLDER",
+                     food_type="PLACEHOLDER"
+                     )
+    )
+    h.add_schedule(
+        LectureSchedule(start_time=DateTime(2018, 9, 6, 15, 0, 0),
+                        place="공D509",
+                        address=p.school_addr,
+                        minutes_duration=110)
+    )
+
+    #FRI
+    h.add_schedule(
+        LectureSchedule(start_time=DateTime(2018, 9, 7, 11, 0, 0),
+                        place="공D504",
+                        address=p.school_addr,
+                        minutes_duration=50)
+    )
+
 
     h.simulate_until(DateTime(2018,9,30,20,0,0))
 
