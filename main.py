@@ -119,6 +119,23 @@ def add_work(*,
 
     add_datapoint(dp)
 
+def add_rest(*,
+             environment,
+             time_range):
+    print("ADD ROW: rest")
+    dp = DataPoint()
+    dp.start_time = time_range[0]
+    dp.end_time = time_range[1]
+    dp.activity = "수동적 여가"
+    dp.location = "실내"
+    dp.food = "/"
+    dp.amount_of_food = "/"
+    dp.meal_type = "/"
+
+    environment.copy_to_datapoint(dp)
+
+    add_datapoint(dp)
+
 def add_meet(*,
              environment,
              time_range):
@@ -308,7 +325,6 @@ class Environment():
         self._tiredness += minutes/60*5 #5/hour
 
         self._temperature=self._temperature_curve(self.time.hour+self.time.minute/60)
-
         return (start_time, end_time)
 
     def eat_effect(self):
@@ -386,6 +402,11 @@ class Human():
 
         self.env.sleep_effect()
 
+    def rest(self,*,minutes_taken):
+
+        add_rest(environment=self.env,
+                 time_range=self.env.time_progress(minutes_taken))
+
     def meet(self,*,minutes_taken):
 
         add_meet(environment=self.env,
@@ -452,6 +473,15 @@ class Human():
                         minutes_duration=10
                     )
                 )
+            elif self.minutes_clearance()>180: # >3 hour free time
+                self.schedule.add_schedule(
+                    RestSchedule(
+                        start_time=self.env.time+TimeDelta(minutes=30),
+                        place=self.parameters.home_place,
+                        address=self.parameters.home_place,
+                        minutes_duration=self.minutes_clearance()-30
+                    )
+                )
             else:
                 self.add_schedule(NothingSchedule(start_time=self.env.time,
                                                   place=self.env.place,
@@ -466,8 +496,8 @@ class Human():
 
             print("\n\nCycle",n)
 
-            if n>100:
-                print("Over 100 simulation cycles! Breaking.")
+            if n>10000:
+                print("Over 10000 simulation cycles! Breaking.")
                 print("Modify source if this is the expected behavior.")
                 break
             if limit_time-self.env.time<TimeDelta(0):
@@ -661,6 +691,25 @@ class NothingSchedule(ScheduleElement):
         print("NothingSchedule activated")
         human.do_nothing(minutes_taken=self.minutes_duration)
 
+
+class RestSchedule(ScheduleElement):
+
+    def __init__(self,*,
+                 start_time,
+                 place,
+                 address,
+                 minutes_duration):
+        super().__init__(priority=50,
+                         start_time=start_time,
+                         place=place,
+                         address=address)
+        self.minutes_duration=minutes_duration
+
+
+    def act(self, human):
+        print("RestSchedule activated")
+        human.rest(minutes_taken=self.minutes_duration)
+
 class MoveSchedule(ScheduleElement):
     def __init__(self,*,
                  current_environment,
@@ -717,10 +766,9 @@ class ScheduleList():
 
 def main():
     p=Parameters()
-    p.home_addr = "HOMEADDR"
-    p.home_place = "HOMEPLACE"
-    p.school_addr="SCHOOLADDR"
-    p.school_cafeteria_place="SCHOOLFOODPLACE"
+    p.home_addr = "서울시 중구 명동"
+    p.home_place = "집"
+    p.school_addr="서울시 서대문구 신촌동"
     def eat_probability(hunger):
         if hunger < 50:
             return 0
@@ -885,7 +933,7 @@ def main():
         )
     )
 
-    h.simulate_until(DateTime(2018,9,30,20,0,0))
+    h.simulate_until(DateTime(2018,9,14,20,0,0))
 
     print("\n\n\n########  RESULTS  #########\n")
     res=datapoints_to_csv()
